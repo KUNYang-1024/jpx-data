@@ -1,0 +1,35 @@
+name: Download JPX CSV Daily
+
+on:
+  schedule:
+    # Runs at 8:00 UTC on weekdays (adjust as needed)
+    - cron: '0 8 * * 1-5'
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+jobs:
+  download-csv:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+          
+      - name: Download JPX CSV
+        run: |
+          python jpx_downloader.py
+          
+      - name: Commit and push if CSV changed
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          git add jpx_data/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Automatic JPX CSV update $(date)" && git push)
