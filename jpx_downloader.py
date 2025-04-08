@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-JPX Multiple CSV Downloader
---------------------------
-This script automatically downloads daily CSV files from multiple JPX sources:
-1. Settlement prices from derivatives markets
-2. Statistics for Interest Rate Swap(Daily)
-3. Settlement Rates for Interest Rate Swap(Daily)
+JPX File Downloader
+-----------------
+This script automatically downloads:
+1. Settlement prices from derivatives markets (CSV)
+2. Settlement Rates for Interest Rate Swap(Daily) (PDF)
 
 Files are saved to separate folders with appropriate naming.
 """
@@ -60,11 +59,9 @@ def get_derivatives_csv_link():
         logging.error(f"Error finding derivatives CSV link: {str(e)}")
         return None
 
-def get_interest_rate_swap_links():
+def get_irs_settlement_rates_link():
     """
-    Scrape the JPX website to find both Interest Rate Swap CSV files:
-    1. Statistics for Interest Rate Swap(Daily) - usually Excel file
-    2. Settlement Rates for Interest Rate Swap(Daily) - usually PDF or CSV
+    Scrape the JPX website to find the Settlement Rates for Interest Rate Swap(Daily) PDF link.
     """
     url = "https://www.jpx.co.jp/jscc/en/interest_rate_swap.html"
     
@@ -78,8 +75,7 @@ def get_interest_rate_swap_links():
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Find sections by their headers
-        statistics_link = None
+        # Find the Settlement Rates section by its header
         settlement_rates_link = None
         
         # Look for headers containing the specific text
@@ -88,53 +84,29 @@ def get_interest_rate_swap_links():
         for header in headers:
             header_text = header.get_text().strip()
             
-            # Statistics for Interest Rate Swap(Daily)
-            if "Statistics for Interest Rate Swap(Daily)" in header_text:
-                # Look for the nearest Excel/CSV link after this header
-                next_element = header
-                while next_element and not statistics_link:
-                    next_element = next_element.next_element
-                    if next_element and hasattr(next_element, 'name') and next_element.name == 'a':
-                        href = next_element.get('href', '')
-                        if '.xls' in href.lower() or '.csv' in href.lower():
-                            statistics_link = next_element['href']
-                            break
-            
             # Settlement Rates for Interest Rate Swap(Daily)
             if "Settlement Rates for Interest Rate Swap(Daily)" in header_text:
-                # Look for the nearest PDF/CSV link after this header
+                # Look for the nearest PDF link after this header
                 next_element = header
                 while next_element and not settlement_rates_link:
                     next_element = next_element.next_element
                     if next_element and hasattr(next_element, 'name') and next_element.name == 'a':
                         href = next_element.get('href', '')
-                        if '.pdf' in href.lower() or '.csv' in href.lower():
+                        if '.pdf' in href.lower():
                             settlement_rates_link = next_element['href']
                             break
         
-        # Convert to absolute URLs if needed
-        base_url = "https://www.jpx.co.jp"
-        
-        if statistics_link and not statistics_link.startswith('http'):
-            statistics_link = base_url + statistics_link if statistics_link.startswith('/') else base_url + '/' + statistics_link
-        
+        # Convert to absolute URL if needed
         if settlement_rates_link and not settlement_rates_link.startswith('http'):
+            base_url = "https://www.jpx.co.jp"
             settlement_rates_link = base_url + settlement_rates_link if settlement_rates_link.startswith('/') else base_url + '/' + settlement_rates_link
         
-        logging.info(f"Found Statistics IRS link: {statistics_link}")
-        logging.info(f"Found Settlement Rates IRS link: {settlement_rates_link}")
-        
-        return {
-            'statistics_link': statistics_link,
-            'settlement_rates_link': settlement_rates_link
-        }
+        logging.info(f"Found Settlement Rates IRS PDF link: {settlement_rates_link}")
+        return settlement_rates_link
         
     except Exception as e:
-        logging.error(f"Error finding Interest Rate Swap links: {str(e)}")
-        return {
-            'statistics_link': None,
-            'settlement_rates_link': None
-        }
+        logging.error(f"Error finding Settlement Rates IRS PDF link: {str(e)}")
+        return None
 
 def download_derivatives_csv(csv_url, download_dir="jpx_data"):
     """
@@ -168,109 +140,57 @@ def download_derivatives_csv(csv_url, download_dir="jpx_data"):
         logging.error(f"Error downloading derivatives CSV: {str(e)}")
         return False
 
-def download_irs_statistics(file_url, download_dir="Statistics for Interest Rate Swap(Daily)"):
+def download_irs_settlement_rates_pdf(pdf_url, download_dir="Settlement Rates for Interest Rate Swap(Daily)"):
     """
-    Download the Statistics for Interest Rate Swap(Daily) file.
+    Download the Settlement Rates for Interest Rate Swap(Daily) PDF file.
     """
-    if not file_url:
+    if not pdf_url:
         return False
     
     try:
         os.makedirs(download_dir, exist_ok=True)
         
         today = datetime.datetime.now().strftime("%Y%m%d")
-        
-        # Determine file extension from URL
-        file_extension = 'csv'
-        if '.xls' in file_url.lower():
-            file_extension = 'xlsx' if '.xlsx' in file_url.lower() else 'xls'
-        
-        filename = f"irs_statistics_{today}.{file_extension}"
+        filename = f"irs_settlement_rates_{today}.pdf"
         filepath = os.path.join(download_dir, filename)
         
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         
-        logging.info(f"Downloading IRS Statistics from {file_url}")
-        response = requests.get(file_url, headers=headers)
+        logging.info(f"Downloading IRS Settlement Rates PDF from {pdf_url}")
+        response = requests.get(pdf_url, headers=headers)
         response.raise_for_status()
         
         with open(filepath, 'wb') as f:
             f.write(response.content)
         
-        logging.info(f"Successfully downloaded IRS Statistics to {filepath}")
+        logging.info(f"Successfully downloaded IRS Settlement Rates PDF to {filepath}")
         return True
         
     except Exception as e:
-        logging.error(f"Error downloading IRS Statistics: {str(e)}")
-        return False
-
-def download_irs_settlement_rates(file_url, download_dir="Settlement Rates for Interest Rate Swap(Daily)"):
-    """
-    Download the Settlement Rates for Interest Rate Swap(Daily) file.
-    """
-    if not file_url:
-        return False
-    
-    try:
-        os.makedirs(download_dir, exist_ok=True)
-        
-        today = datetime.datetime.now().strftime("%Y%m%d")
-        
-        # Determine file extension from URL
-        file_extension = 'csv'
-        if '.pdf' in file_url.lower():
-            file_extension = 'pdf'
-        
-        filename = f"irs_settlement_rates_{today}.{file_extension}"
-        filepath = os.path.join(download_dir, filename)
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        
-        logging.info(f"Downloading IRS Settlement Rates from {file_url}")
-        response = requests.get(file_url, headers=headers)
-        response.raise_for_status()
-        
-        with open(filepath, 'wb') as f:
-            f.write(response.content)
-        
-        logging.info(f"Successfully downloaded IRS Settlement Rates to {filepath}")
-        return True
-        
-    except Exception as e:
-        logging.error(f"Error downloading IRS Settlement Rates: {str(e)}")
+        logging.error(f"Error downloading IRS Settlement Rates PDF: {str(e)}")
         return False
 
 def main():
     """
-    Main function to execute the file download process for all sources.
+    Main function to execute the file download process.
     """
-    logging.info("Starting JPX Multiple File Downloader")
+    logging.info("Starting JPX File Downloader")
     
-    # Download derivatives settlement prices
+    # Download derivatives settlement prices CSV
     derivatives_csv_url = get_derivatives_csv_link()
     if derivatives_csv_url:
         download_derivatives_csv(derivatives_csv_url)
     else:
         logging.error("Failed to get derivatives CSV link.")
     
-    # Download Interest Rate Swap files
-    irs_links = get_interest_rate_swap_links()
-    
-    # Download Statistics for Interest Rate Swap(Daily)
-    if irs_links['statistics_link']:
-        download_irs_statistics(irs_links['statistics_link'])
+    # Download Settlement Rates for Interest Rate Swap(Daily) PDF
+    irs_pdf_url = get_irs_settlement_rates_link()
+    if irs_pdf_url:
+        download_irs_settlement_rates_pdf(irs_pdf_url)
     else:
-        logging.error("Failed to get Statistics for Interest Rate Swap(Daily) link.")
-    
-    # Download Settlement Rates for Interest Rate Swap(Daily)
-    if irs_links['settlement_rates_link']:
-        download_irs_settlement_rates(irs_links['settlement_rates_link'])
-    else:
-        logging.error("Failed to get Settlement Rates for Interest Rate Swap(Daily) link.")
+        logging.error("Failed to get Settlement Rates for Interest Rate Swap(Daily) PDF link.")
 
 if __name__ == "__main__":
     main()
