@@ -140,7 +140,7 @@ def download_derivatives_csv(csv_url, download_dir="jpx_data"):
         logging.error(f"Error downloading derivatives CSV: {str(e)}")
         return False
 
-def download_irs_settlement_rates_pdf(pdf_url, download_dir="Settlement Rates for Interest Rate Swap(Daily)"):
+def download_irs_settlement_rates_pdf(pdf_url, download_dir="jpx_data"):
     """
     Download the Settlement Rates for Interest Rate Swap(Daily) PDF file.
     """
